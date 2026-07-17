@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
-
 import { configureAmplify } from "@/lib/amplify";
 
-export function AmplifyProvider({ children }: Readonly<{ children: React.ReactNode }>) {
-  useEffect(() => {
-    configureAmplify();
-  }, []);
+if (typeof window !== "undefined") {
+  configureAmplify();
+}
 
+export function AmplifyProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   return children;
 }

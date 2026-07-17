@@ -134,6 +134,8 @@
 html { scroll-behavior: smooth; }
 
 .glass { border: 1px solid rgba(255,255,255,.10); background: rgba(12, 18, 35, .62); box-shadow: inset 0 1px 0 rgba(255,255,255,.035); backdrop-filter: blur(18px); }
+/* Dashboard's full-viewport decorative background must never participate in hit testing. */
+main > div.fixed.inset-0.-z-10 { pointer-events: none; }
 .gradient-text { background: linear-gradient(115deg, #f8fafc 15%, #7dd3fc 50%, #c4b5fd 90%); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .hero-grid { background-image: linear-gradient(rgba(148,163,184,.075) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.075) 1px, transparent 1px); background-size: 52px 52px; mask-image: linear-gradient(to bottom, black, transparent 85%); }
 .glow { position: absolute; width: 32rem; height: 32rem; border-radius: 9999px; filter: blur(80px); pointer-events: none; animation: float 12s ease-in-out infinite; }

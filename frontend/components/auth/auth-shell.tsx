@@ -29,7 +29,10 @@ const signUpSchema = baseSchema
   });
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Unable to complete that request. Please try again.";
+  if (error instanceof Error) {
+    return `[${error.name}] ${error.message}`;
+  }
+  return "[UnknownAuthError] Unable to complete that request. Check the browser console for details.";
 }
 
 function Brand() {
@@ -113,7 +116,11 @@ export function AuthShell({ mode }: { mode: AuthMode }) {
       try {
         const response = await signInWithEmail(result.data.email, result.data.password);
         if (!response.isSignedIn) {
-          setError("Complete the next sign-in step in your Cognito configuration.");
+          if (response.nextStep.signInStep === "CONFIRM_SIGN_UP") {
+            router.push(`/signup/confirm?email=${encodeURIComponent(result.data.email)}`);
+            return;
+          }
+          setError(`Cognito requires an additional sign-in step: ${response.nextStep.signInStep}.`);
           return;
         }
         router.replace("/dashboard");
@@ -170,7 +177,7 @@ export function AuthShell({ mode }: { mode: AuthMode }) {
             <Field label="Password" name="password" type="password" autoComplete={login ? "current-password" : "new-password"} placeholder="Enter your password" />
             {!login && <Field label="Confirm password" name="confirmPassword" type="password" autoComplete="new-password" placeholder="Re-enter your password" />}
             {error && <p role="alert" className="rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-100">{error}</p>}
-            <Button disabled={isSubmitting || !isCognitoConfigured} className="h-12 w-full rounded-xl bg-white text-sm font-semibold text-slate-950 hover:bg-cyan-50">
+            <Button type="submit" disabled={isSubmitting || !isCognitoConfigured} className="h-12 w-full rounded-xl bg-white text-sm font-semibold text-slate-950 hover:bg-cyan-50">
               {isSubmitting ? "Please wait..." : login ? "Log in" : "Create account"}
               <ArrowRight className="ml-1" />
             </Button>
