@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowRight, Check, Eye, EyeOff, Sparkles } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { isCognitoConfigured } from "@/lib/amplify";
-import { signInWithEmail, signUpWithEmail } from "@/services/auth";
+import { signInWithEmail, signUpWithEmail, getAuthenticatedUser } from "@/services/auth";
 
 type AuthMode = "login" | "signup";
 
@@ -94,6 +94,27 @@ export function AuthShell({ mode }: { mode: AuthMode }) {
   const router = useRouter();
   const [error, setError] = useState<string>();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(login);
+
+  useEffect(() => {
+    if (!login || !isCognitoConfigured) {
+      setIsCheckingAuth(false);
+      return;
+    }
+    
+    let isMounted = true;
+    getAuthenticatedUser()
+      .then(() => {
+        if (isMounted) router.replace("/dashboard");
+      })
+      .catch(() => {
+        if (isMounted) setIsCheckingAuth(false);
+      });
+      
+    return () => {
+      isMounted = false;
+    };
+  }, [login, router]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -125,7 +146,11 @@ export function AuthShell({ mode }: { mode: AuthMode }) {
         }
         router.replace("/dashboard");
         router.refresh();
-      } catch (caughtError) {
+      } catch (caughtError: unknown) {
+        if (caughtError && typeof caughtError === "object" && "name" in caughtError && caughtError.name === "UserAlreadyAuthenticatedException") {
+          router.replace("/dashboard");
+          return;
+        }
         setError(errorMessage(caughtError));
       } finally {
         setIsSubmitting(false);
@@ -156,6 +181,14 @@ export function AuthShell({ mode }: { mode: AuthMode }) {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (isCheckingAuth) {
+    return (
+      <main className="min-h-screen bg-[#050914] flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
+      </main>
+    );
   }
 
   return (
