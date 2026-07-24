@@ -27,7 +27,9 @@ const defaultExecutionId = (): string =>
 
 export abstract class BaseAgent implements Agent {
   abstract readonly name: string;
+  abstract readonly displayLabel: string;
   abstract readonly description: string;
+  abstract readonly icon: string;
   abstract readonly capabilities: readonly AgentCapability[];
   protected abstract readonly promptDefinition: AgentPrompt;
 
@@ -76,21 +78,38 @@ export abstract class BaseAgent implements Agent {
   }
 
   protected buildSystemPrompt(memory: MemoryContext | undefined): string {
-    const prompt = this.promptDefinition;
+    const p = this.promptDefinition;
     const sections = [
-      `Role: ${prompt.role}`,
-      `Objective: ${prompt.objective}`,
-      `Tone: ${prompt.tone}`,
-      `Response format: ${prompt.responseFormat}`,
-      `Constraints:\n${prompt.constraints.map((constraint) => `- ${constraint}`).join("\n")}`,
+      `Role: ${p.role}`,
+      `Goals:\n${p.goals.map((g) => `- ${g}`).join("\n")}`,
+      `Tone: ${p.tone}`,
+      `Output style: ${p.outputStyle}`,
+      `Response format: ${p.responseFormat}`,
+      `Constraints:\n${p.constraints.map((c) => `- ${c}`).join("\n")}`,
+      `Memory instructions: ${p.memoryInstructions}`,
     ];
+    // Legacy MemoryContext path (kept for backward compatibility)
     if (memory) sections.push(`Founder context:\n${JSON.stringify(memory)}`);
     return sections.join("\n\n");
   }
 
   protected buildUserPrompt(request: AgentRequest, context: MemoryContext | undefined): string {
     const additionalContext: AgentContext["data"] = request.context?.data;
-    return [request.prompt, additionalContext ? `Additional context:\n${JSON.stringify(additionalContext)}` : "", context ? "Use the founder context supplied in the system prompt." : ""].filter(Boolean).join("\n\n");
+    const memorySystemPrompt =
+      additionalContext &&
+      typeof additionalContext === "object" &&
+      "memorySystemPrompt" in additionalContext &&
+      typeof additionalContext.memorySystemPrompt === "string"
+        ? additionalContext.memorySystemPrompt
+        : undefined;
+
+    return [
+      request.prompt,
+      memorySystemPrompt ? `\n\n${memorySystemPrompt}` : "",
+      context && !memorySystemPrompt ? "Use the founder context supplied in the system prompt." : "",
+    ]
+      .filter(Boolean)
+      .join("");
   }
 
   protected parseData(content: string): AgentData | undefined {
@@ -105,12 +124,20 @@ export abstract class BaseAgent implements Agent {
 
   private buildMetadata(executionId: string, startedAt: Date, provider?: AgentMetadata["provider"], model?: string): AgentMetadata {
     const completedAt = this.now();
-    return { executionId, agent: this.name, startedAt: startedAt.toISOString(), completedAt: completedAt.toISOString(), durationMs: completedAt.getTime() - startedAt.getTime(), ...(provider ? { provider } : {}), ...(model ? { model } : {}) };
+    return {
+      executionId,
+      agent: this.name,
+      startedAt: startedAt.toISOString(),
+      completedAt: completedAt.toISOString(),
+      durationMs: completedAt.getTime() - startedAt.getTime(),
+      ...(provider ? { provider } : {}),
+      ...(model ? { model } : {}),
+    };
   }
 
   private isAgentData(value: unknown): value is AgentData {
     if (value === null || typeof value === "boolean" || typeof value === "number" || typeof value === "string") return true;
     if (Array.isArray(value)) return value.every((item) => this.isAgentData(item));
-    return typeof value === "object" && Object.values(value).every((item) => this.isAgentData(item));
+    return typeof value === "object" && Object.values(value as object).every((item) => this.isAgentData(item));
   }
 }

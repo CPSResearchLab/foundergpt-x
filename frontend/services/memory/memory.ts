@@ -30,7 +30,7 @@ export interface MemoryEngine {
 const cloneMemory = <T extends MemoryRecord>(memory: T): T => structuredClone(memory);
 
 export class InMemoryMemoryEngine implements MemoryEngine {
-  private readonly collections = new Map<MemoryCollection, Map<string, MemoryRecord>>();
+  readonly collections = new Map<MemoryCollection, Map<string, MemoryRecord>>();
 
   async saveMemory<T extends MemoryRecord>(collection: MemoryCollection, memory: T): Promise<T> {
     const records = this.getCollection(collection);
@@ -125,3 +125,12 @@ export const searchMemory = <T extends MemoryRecord>(
   collection: MemoryCollection,
   options?: MemorySearchOptions<T>,
 ): Promise<T[]> => memoryEngine.searchMemory(collection, options);
+
+export function getMemoryEntryCount(): number {
+  let total = 0;
+  const engine = memoryEngine as InMemoryMemoryEngine;
+  for (const collection of engine.collections.values()) {
+    total += collection.size;
+  }
+  return total;
+}

@@ -100,8 +100,18 @@ export default function ProjectChatPage({ params }: { params: Promise<{ id: stri
     }
 
     try {
-      const contextMetadata = `Project Name: ${project.name}, Industry: ${project.industry}, Description: ${project.description || "None"}`;
-      const aiResponse = await sendChatMessage(content, contextMetadata, "research");
+      const aiResponse = await sendChatMessage(
+        content,
+        project.description || "",
+        "research",
+        {
+          projectId: project.id,
+          projectName: project.name,
+          projectIndustry: project.industry,
+          projectDescription: project.description,
+          sessionId: activeSessionId,
+        },
+      );
       
       const assistantMsg = await addMessageToChat(activeSessionId, "assistant", aiResponse);
       setMessages(prev => [...prev, assistantMsg]);

@@ -128,3 +128,149 @@ export interface MemoryContext {
   recentDocuments: readonly DocumentMemory[];
   conversationSummary?: ConversationSummary;
 }
+
+// ─── New: Message Memory Record ──────────────────────────────────────────────
+
+/** All entity categories that can be extracted from a message. */
+export interface ExtractedEntities {
+  founderNames: readonly string[];
+  companyNames: readonly string[];
+  startupIdeas: readonly string[];
+  industries: readonly string[];
+  targetCustomers: readonly string[];
+  businessModels: readonly string[];
+  fundingMentions: readonly string[];
+  goals: readonly string[];
+  deadlines: readonly string[];
+  technologies: readonly string[];
+  competitors: readonly string[];
+  problems: readonly string[];
+  requirements: readonly string[];
+  decisions: readonly string[];
+}
+
+/** A single stored message with full attribution and extracted entities. */
+export interface MessageMemoryRecord extends MemoryRecord {
+  /** The chat session this message belongs to. */
+  sessionId: string;
+  /** The user who owns this message. */
+  userId: string;
+  /** The role of the message author. */
+  role: "user" | "assistant" | "system";
+  /** The raw message content. */
+  content: string;
+  /** Tags derived from content and context. */
+  tags: readonly string[];
+  /** Entities extracted from the message content. */
+  entities: ExtractedEntities;
+  /** Relevance score used during retrieval (0–1). Set at write time to 1. */
+  relevanceScore: number;
+  /** Pinned memories are always preferred during ranking. */
+  pinned?: boolean;
+}
+
+// ─── Ranked Memory ───────────────────────────────────────────────────────────
+
+/** A ChatMessageEntry decorated with its ranking breakdown. */
+export interface RankedMemory {
+  entry: ChatMessageEntry;
+  /** Exponential-decay score based on message age (0–1). */
+  recencyScore: number;
+  /** Heuristic score based on entity density and signal keywords (0–1). */
+  importanceScore: number;
+  /** Keyword-overlap score against the current project id and query (0–1). */
+  projectRelevanceScore: number;
+  /** Weighted composite: recency×0.35 + importance×0.35 + relevance×0.30 */
+  score: number;
+}
+
+// ─── Retrieved Memory Context ────────────────────────────────────────────────
+
+/** Structured context returned before every AI request. */
+export interface RetrievedMemoryContext {
+  /** Best recent memories for this user, ranked. */
+  recentMemories: readonly RankedMemory[];
+  /** Best memories for the current project, ranked. */
+  projectMemories: readonly RankedMemory[];
+  /** Chronological chat history for the current session, ranked. */
+  chatHistory: readonly RankedMemory[];
+}
+
+// ─── Chat Message Entry ──────────────────────────────────────────────────────
+
+/** Flat record stored automatically for every user/assistant message. */
+export interface ChatMessageEntry extends MemoryRecord {
+  userId: string;
+  projectId: string;
+  chatId: string;
+  role: "user" | "assistant" | "system";
+  message: string;
+  timestamp: MemoryTimestamp;
+}
+
+// ─── New: Retrieval ───────────────────────────────────────────────────────────
+
+/** A ranked memory record returned from retrieval. */
+export interface MemorySearchResult {
+  record: MessageMemoryRecord;
+  /** Combined score: recency × relevance (0–1). */
+  score: number;
+}
+
+// ─── New: Structured Agent Context ───────────────────────────────────────────
+
+/** Structured context passed to the agent system prompt. Never a raw string concat. */
+export interface AgentMemoryContext {
+  /** Current authenticated user. */
+  user: {
+    id: string;
+    displayName?: string;
+    email?: string;
+  };
+  /** Project-level facts. */
+  project: {
+    id: string;
+    name: string;
+    industry: string;
+    description: string;
+  };
+  /** Aggregated business information extracted from all project memory. */
+  businessInfo: {
+    founderNames: readonly string[];
+    companyNames: readonly string[];
+    targetCustomers: readonly string[];
+    businessModels: readonly string[];
+    fundingMentions: readonly string[];
+    technologies: readonly string[];
+    competitors: readonly string[];
+  };
+  /** Long-term strategic facts extracted across all sessions for this project. */
+  longTermFacts: {
+    industries: readonly string[];
+    goals: readonly string[];
+    decisions: readonly string[];
+    problems: readonly string[];
+  };
+  /** Semantically relevant past messages ranked by recency + relevance + pinned. */
+  relevantHistory: ReadonlyArray<{
+    role: "user" | "assistant";
+    content: string;
+    createdAt: string;
+    score: number;
+    pinned: boolean;
+  }>;
+  /** Recent messages from the current session (last N turns). */
+  recentMessages: ReadonlyArray<{
+    role: "user" | "assistant";
+    content: string;
+    createdAt: string;
+  }>;
+  /** Relevant documents for this project. */
+  documents: ReadonlyArray<{
+    title: string;
+    type: string;
+    summary: string;
+  }>;
+  /** Per-agent instructions injected into the system prompt. */
+  agentInstructions: string;
+}

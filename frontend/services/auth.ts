@@ -2,6 +2,7 @@ import {
   autoSignIn,
   confirmSignUp,
   fetchAuthSession,
+  fetchUserAttributes,
   getCurrentUser,
   signIn,
   signOut,
@@ -129,5 +130,14 @@ export async function signOutUser() {
   } catch (error: unknown) {
     logError("signOut", error);
     throw error;
+  }
+}
+
+export async function getUserDisplayName(): Promise<string | undefined> {
+  try {
+    const attributes = await fetchUserAttributes();
+    return attributes.name ?? undefined;
+  } catch {
+    return undefined;
   }
 }

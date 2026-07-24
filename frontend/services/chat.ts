@@ -106,22 +106,48 @@ export async function deleteChatSession(sessionId: string): Promise<void> {
   }
 }
 
-// AI API Abstraction
-export async function sendChatMessage(prompt: string, contextMetadata: string, agent: string = "research"): Promise<string> {
-  // Prepend project context to the prompt transparently
-  const fullPrompt = `[SYSTEM CONTEXT: ${contextMetadata}]\n\nUser Message: ${prompt}`;
+export async function getAllChatSessions(): Promise<ChatSession[]> {
+  if (typeof window === "undefined") return [];
+  const data = localStorage.getItem(SESSIONS_KEY);
+  return data ? JSON.parse(data) : [];
+}
 
+// AI API Abstraction
+export interface SendChatMessageOptions {
+  userId?: string;
+  projectId?: string;
+  sessionId?: string;
+  projectName?: string;
+  projectIndustry?: string;
+  projectDescription?: string;
+}
+
+export async function sendChatMessage(
+  prompt: string,
+  contextMetadata: string,
+  agent: string = "research",
+  options: SendChatMessageOptions = {},
+): Promise<string> {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: fullPrompt, agent }),
+    body: JSON.stringify({
+      message: prompt,
+      agent,
+      userId: options.userId ?? "anonymous",
+      projectId: options.projectId ?? "global",
+      sessionId: options.sessionId ?? "global",
+      projectName: options.projectName ?? "",
+      projectIndustry: options.projectIndustry ?? "",
+      projectDescription: options.projectDescription ?? contextMetadata,
+    }),
   });
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || "Failed to communicate with AI.");
+    throw new Error((errorData as { error?: string }).error || "Failed to communicate with AI.");
   }
 
-  const data = await response.json();
+  const data = await response.json() as { response: string };
   return data.response;
 }

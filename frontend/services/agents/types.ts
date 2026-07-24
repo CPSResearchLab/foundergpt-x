@@ -11,7 +11,12 @@ export interface AgentCapability {
 
 export interface Agent {
   readonly name: string;
+  /** Human-readable label shown in the UI. */
+  readonly displayLabel: string;
+  /** Short description shown in the agent selector. */
   readonly description: string;
+  /** Emoji or icon identifier for the UI. */
+  readonly icon: string;
   readonly capabilities: readonly AgentCapability[];
   execute(request: AgentRequest): Promise<AgentResponse>;
 }

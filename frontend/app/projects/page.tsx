@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { Suspense, useState, useEffect, useMemo } from "react";
 import { ProjectHeader } from "@/components/projects/ProjectHeader";
 import { ProjectGrid } from "@/components/projects/ProjectGrid";
 import { EmptyState } from "@/components/projects/EmptyState";
 import { ProjectModal } from "@/components/projects/ProjectModal";
 import { Project, getProjects, createProject, updateProject, deleteProject } from "@/services/projects";
 import { DashboardAuthGate } from "@/components/auth/dashboard-auth-gate";
-import { Menu, Bell, Search } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Menu, Bell } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function ProjectsPage() {
+function ProjectsContent() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -18,6 +18,7 @@ export default function ProjectsPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     async function loadProjects() {
@@ -25,8 +26,19 @@ export default function ProjectsPage() {
       setProjects(data);
       setIsLoading(false);
     }
-    loadProjects();
+    void loadProjects();
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get("new") === "true") {
+      setEditingProject(null);
+      setIsModalOpen(true);
+    }
+    const search = searchParams.get("search");
+    if (search) {
+      setSearchQuery(search);
+    }
+  }, [searchParams]);
 
   const handleCreateProject = async (data: { name: string; description?: string; industry?: string }) => {
     const newProject = await createProject({
@@ -72,7 +84,7 @@ export default function ProjectsPage() {
   const filteredProjects = useMemo(() => {
     if (!searchQuery.trim()) return projects;
     const query = searchQuery.toLowerCase();
-    return projects.filter(p => 
+    return projects.filter(p =>
       p.name.toLowerCase().includes(query) ||
       p.industry.toLowerCase().includes(query) ||
       p.description.toLowerCase().includes(query)
@@ -83,8 +95,7 @@ export default function ProjectsPage() {
     <DashboardAuthGate>
       <main className="min-h-screen bg-[#050914] text-white">
         <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_80%_0%,rgba(34,211,238,.05),transparent_26%),radial-gradient(circle_at_20%_100%,rgba(139,92,246,.05),transparent_25%)]" />
-        
-        {/* We use standard layout wrapper, assuming layout.tsx provides Sidebar. If not, this matches dashboard. */}
+
         <div className="lg:pl-64">
           <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-white/[.07] bg-[#050914]/80 px-5 backdrop-blur-xl sm:px-8 lg:hidden">
             <div className="flex items-center gap-3">
@@ -93,18 +104,22 @@ export default function ProjectsPage() {
               </button>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={() => router.push('#')} className="relative grid size-9 place-items-center rounded-lg text-slate-400 hover:bg-white/5" aria-label="Notifications">
+              <button
+                onClick={() => router.push("/chat")}
+                className="relative grid size-9 place-items-center rounded-lg text-slate-400 hover:bg-white/5"
+                aria-label="Notifications"
+              >
                 <Bell className="size-4" />
                 <span className="absolute right-2 top-2 size-1.5 rounded-full bg-cyan-300" />
               </button>
               <div className="size-8 rounded-full bg-gradient-to-br from-cyan-300 to-violet-400 p-px">
-                <div className="grid size-full place-items-center rounded-full bg-slate-900 text-xs font-medium">AM</div>
+                <div className="grid size-full place-items-center rounded-full bg-slate-900 text-xs font-medium">?</div>
               </div>
             </div>
           </header>
 
           <section className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-10">
-            <ProjectHeader 
+            <ProjectHeader
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
               onNewProject={openNewProjectModal}
@@ -116,22 +131,22 @@ export default function ProjectsPage() {
                   <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
                 </div>
               ) : filteredProjects.length > 0 ? (
-                <ProjectGrid 
+                <ProjectGrid
                   projects={filteredProjects}
                   onRename={openEditProjectModal}
                   onDelete={handleDeleteProject}
                 />
               ) : (
-                <EmptyState 
-                  isSearch={searchQuery.length > 0} 
-                  onNewProject={openNewProjectModal} 
+                <EmptyState
+                  isSearch={searchQuery.length > 0}
+                  onNewProject={openNewProjectModal}
                 />
               )}
             </div>
           </section>
         </div>
 
-        <ProjectModal 
+        <ProjectModal
           isOpen={isModalOpen}
           onClose={() => {
             setIsModalOpen(false);
@@ -142,5 +157,13 @@ export default function ProjectsPage() {
         />
       </main>
     </DashboardAuthGate>
+  );
+}
+
+export default function ProjectsPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-[#050914]" />}>
+      <ProjectsContent />
+    </Suspense>
   );
 }
