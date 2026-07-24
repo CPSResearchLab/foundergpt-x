@@ -43,7 +43,8 @@ export async function parseDocument(buffer: Buffer, fileType: DocumentFileType):
 
 async function parsePdf(buffer: Buffer): Promise<ParseResult> {
   // Dynamic import keeps this out of the client bundle
-  const pdfParse = (await import("pdf-parse")).default;
+  const pdfParseModule = await import("pdf-parse");
+const pdfParse = pdfParseModule.default ?? pdfParseModule;
   const result = await pdfParse(buffer);
   return { text: result.text.trim(), pageCount: result.numpages };
 }
