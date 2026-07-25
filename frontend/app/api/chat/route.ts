@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { AgentManager } from "@/services/agents/manager";
 import { agentRegistry } from "@/services/agents/registry";
 import { storeChatMessage } from "@/services/memory/pipeline";
-import { buildAgentMemoryContext, serializeContextToSystemPrompt } from "@/services/memory/context-builder";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const SAFE_ID_RE = /^[a-zA-Z0-9_-]{1,128}$/;
@@ -69,27 +68,22 @@ export async function POST(request: Request) {
       content: message,
     });
 
-    // 2. Build structured memory context for this request
-    const memoryCtx = await buildAgentMemoryContext({
-      userId,
-      projectId,
-      projectName,
-      projectIndustry,
-      projectDescription,
-      sessionId,
-      currentMessage: message,
-    });
-
-    // 3. Serialize context to a structured system prompt addendum
-    const memorySystemPrompt = serializeContextToSystemPrompt(memoryCtx);
-
-    // 4. Execute the agent with memory context injected
+    // 2. Pass context inputs through the agent to the AI router. The router
+    // builds and injects the bounded structured context before the provider call.
     const result = await agentManager.execute({
       agent,
       prompt: message,
+      contextInput: {
+        userId,
+        projectId,
+        sessionId,
+        currentMessage: message,
+        projectName,
+        projectIndustry,
+        projectDescription,
+      },
       context: {
         data: {
-          memorySystemPrompt,
           projectId,
           sessionId,
           userId,
@@ -105,7 +99,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 5. Store the assistant response through the memory pipeline
+    // 3. Store the assistant response through the memory pipeline
     storeChatMessage({
       userId,
       projectId,

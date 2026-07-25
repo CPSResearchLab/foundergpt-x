@@ -1,5 +1,6 @@
 import type { AIProvider, AIResponse } from "../ai/types";
 import type { MemoryContext, MemoryValue } from "../memory/types";
+import type { FounderGPTContextInput } from "../memory/foundergpt-context";
 
 export type AgentData = MemoryValue;
 
@@ -30,6 +31,7 @@ export interface AgentRequest {
   agent: string;
   prompt: string;
   context?: AgentContext;
+  contextInput?: FounderGPTContextInput;
   provider?: AIProvider;
   model?: string;
   temperature?: number;

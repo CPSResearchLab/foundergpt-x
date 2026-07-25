@@ -21,7 +21,17 @@ import { askOpenRouter } from "./openrouter";
 import { askNvidia } from "./nvidia";
 import { askBedrock } from "./bedrock";
 import { askClaude } from "./claude";
-import { MODELS } from "./models";
+import {
+  getDefaultModelForProvider,
+  getModel,
+  getPresetModel,
+} from "./models";
+import { getAgentProfile } from "../agents/profiles";
+import {
+  buildFounderGPTContext,
+  serializeFounderGPTContext,
+} from "../memory/foundergpt-context";
+import { storeExtractedKnowledge } from "../memory/knowledge-extractor";
 import type { AIProvider, AIRequest, AIResponse } from "./types";
 
 // ─── Configuration ────────────────────────────────────────────────────────────
@@ -72,12 +82,40 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function addFounderGPTContext(request: AIRequest): Promise<AIRequest> {
+  const profile = getAgentProfile(request.agent);
+  const context = await buildFounderGPTContext(
+    request.contextInput ?? {
+      projectId: "global",
+      currentMessage: request.prompt,
+    },
+  );
+  const contextPrompt = serializeFounderGPTContext(context);
+
+  return {
+    ...request,
+    systemPrompt: [profile?.systemPrompt, request.systemPrompt, contextPrompt]
+      .filter(Boolean)
+      .join("\n\n"),
+    temperature: request.temperature ?? profile?.temperature,
+    maxTokens: request.maxTokens ?? profile?.maxTokens,
+  };
+}
+
 async function callWithRetry(provider: AIProvider, request: AIRequest): Promise<AIResponse> {
   const fn = PROVIDERS[provider].handler;
-  const providerRequest =
-    provider === "bedrock" && !request.model
-      ? { ...request, model: MODELS.bedrock.default }
-      : request;
+  const profile = getAgentProfile(request.agent);
+  const preferredModel = profile ? getModel(profile.preferredBedrockModel) : undefined;
+  const presetModel = getPresetModel(request.preset);
+  const selectedModel = request.model
+    ?? (provider === "bedrock" || preferredModel?.provider === provider
+      ? preferredModel?.id
+      : undefined)
+    ?? (presetModel?.provider === provider ? presetModel.id : undefined)
+    ?? getDefaultModelForProvider(provider)?.id;
+  const providerRequest = selectedModel
+    ? { ...request, model: selectedModel }
+    : request;
   let lastResponse: AIResponse | undefined;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -85,7 +123,17 @@ async function callWithRetry(provider: AIProvider, request: AIRequest): Promise<
 
     const response = await fn(providerRequest);
 
-    if (response.success) return response;
+    if (response.success) {
+      try {
+        await storeExtractedKnowledge(response.text, {
+          projectId: providerRequest.contextInput?.projectId ?? "global",
+          source: `ai-response:${response.provider}:${response.model}`,
+        });
+      } catch (error: unknown) {
+        console.warn("[ai-router] deterministic knowledge extraction failed.", error);
+      }
+      return response;
+    }
 
     lastResponse = response;
 
@@ -107,7 +155,23 @@ async function callWithRetry(provider: AIProvider, request: AIRequest): Promise<
  * Always returns a unified AIResponse. Never throws.
  */
 export async function askAI(request: AIRequest): Promise<AIResponse> {
-  const preferred = request.provider ?? DEFAULT_PROVIDER;
+  let routedRequest: AIRequest;
+  try {
+    routedRequest = await addFounderGPTContext(request);
+  } catch (error: unknown) {
+    console.warn("[ai-router] FounderGPT context build failed; using minimal context.", error);
+    routedRequest = {
+      ...request,
+      systemPrompt: [
+        request.systemPrompt,
+        "FOUNDERGPT_CONTEXT_JSON:\n{\"currentProject\":{\"id\":\"global\"},\"currentChat\":{\"currentMessage\":true}}\nEND_FOUNDERGPT_CONTEXT",
+      ].filter(Boolean).join("\n\n"),
+    };
+  }
+
+  const preferred = routedRequest.provider
+    ?? getPresetModel(routedRequest.preset)?.provider
+    ?? DEFAULT_PROVIDER;
 
   // Build the ordered chain: selected provider first, then the configured fallbacks.
   const chain: AIProvider[] = [preferred, ...DEFAULT_CHAIN.filter((p) => p !== preferred)];
@@ -128,7 +192,7 @@ export async function askAI(request: AIRequest): Promise<AIResponse> {
   let lastResponse: AIResponse | undefined;
 
   for (const provider of available) {
-    const response = await callWithRetry(provider, request);
+    const response = await callWithRetry(provider, routedRequest);
 
     if (response.success) {
       logRouterDecision(provider, response, lastResponse?.provider);

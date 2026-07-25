@@ -1,3 +1,5 @@
+import type { FounderGPTContextInput } from "../memory/foundergpt-context";
+
 export type AIProvider =
   | "gemini"
   | "groq"
@@ -6,10 +8,23 @@ export type AIProvider =
   | "bedrock"
   | "claude";
 
+export type AIPreset =
+  | "fastChat"
+  | "deepResearch"
+  | "coding"
+  | "businessPlanning"
+  | "pitchDeck"
+  | "financialAnalysis"
+  | "marketing";
+
 export interface AIRequest {
   /** Preferred provider. Router will select automatically if omitted. */
+  agent?: string;
   provider?: AIProvider;
   model?: string;
+  preset?: AIPreset;
+  /** Inputs used by the router to build the structured FounderGPT context. */
+  contextInput?: FounderGPTContextInput;
   systemPrompt?: string;
   prompt: string;
   temperature?: number;

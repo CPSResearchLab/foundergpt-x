@@ -3,23 +3,28 @@ import {
   ConverseCommand,
   type Message,
 } from "@aws-sdk/client-bedrock-runtime";
-import { MODELS } from "./models";
 import type { AIRequest, AIResponse } from "./types";
 
-export async function askBedrock(request: AIRequest): Promise<AIResponse> {
-  const model = request.model ?? MODELS.bedrock.default;
-  const region = process.env.AWS_BEDROCK_REGION ?? process.env.NEXT_PUBLIC_AWS_REGION ?? "us-east-1";
+export async function generateBedrockResponse(
+  modelId: string,
+  systemPrompt: string | undefined,
+  userPrompt: string,
+  temperature?: number,
+  maxTokens?: number,
+): Promise<AIResponse> {
+  const model = modelId;
+  const region = process.env.AWS_REGION;
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
 
-  if (!accessKeyId || !secretAccessKey) {
+  if (!region || !accessKeyId || !secretAccessKey) {
     return {
       success: false,
       provider: "bedrock",
       model,
       text: "",
       latencyMs: 0,
-      error: "AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are required for Bedrock.",
+      error: "AWS_REGION, AWS_ACCESS_KEY_ID, and AWS_SECRET_ACCESS_KEY are required for Bedrock.",
     };
   }
 
@@ -28,19 +33,19 @@ export async function askBedrock(request: AIRequest): Promise<AIResponse> {
     credentials: { accessKeyId, secretAccessKey },
   });
 
-  const messages: Message[] = [{ role: "user", content: [{ text: request.prompt }] }];
+  const messages: Message[] = [{ role: "user", content: [{ text: userPrompt }] }];
 
   const start = Date.now();
   try {
     const command = new ConverseCommand({
       modelId: model,
       messages,
-      ...(request.systemPrompt
-        ? { system: [{ text: request.systemPrompt }] }
+      ...(systemPrompt
+        ? { system: [{ text: systemPrompt }] }
         : {}),
       inferenceConfig: {
-        ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
-        ...(request.maxTokens !== undefined ? { maxTokens: request.maxTokens } : {}),
+        ...(temperature !== undefined ? { temperature } : {}),
+        ...(maxTokens !== undefined ? { maxTokens } : {}),
       },
     });
 
@@ -72,4 +77,26 @@ export async function askBedrock(request: AIRequest): Promise<AIResponse> {
       error: error instanceof Error ? error.message : "Bedrock request failed.",
     };
   }
+}
+
+/** Router-compatible adapter for the shared AI provider interface. */
+export async function askBedrock(request: AIRequest): Promise<AIResponse> {
+  if (!request.model) {
+    return {
+      success: false,
+      provider: "bedrock",
+      model: "",
+      text: "",
+      latencyMs: 0,
+      error: "A Bedrock model ID is required.",
+    };
+  }
+
+  return generateBedrockResponse(
+    request.model,
+    request.systemPrompt,
+    request.prompt,
+    request.temperature,
+    request.maxTokens,
+  );
 }

@@ -80,6 +80,23 @@ const DECISION_PATTERNS = [
   /(?:decided?(?:\s+to)?|decision(?:\s+(?:is|was))?|chose(?:n)?\s+to|going\s+with|will\s+(?:use|go\s+with|build|focus)|committed?\s+to)\s+([^.!?\n]{5,100})/gi,
 ];
 
+const TASK_PATTERNS = [
+  /(?:task|todo|action item|next step|follow[- ]?up)\s*[:\-]?\s*([^.!?\n]{5,100})/gi,
+  /(?:we|i)\s+(?:need|have|plan)\s+to\s+([^.!?\n]{5,100})/gi,
+];
+
+const INVESTOR_PATTERNS = [
+  /(?:investors?|backed by|funded by|raised from|investment from)\s*[:\-]?\s*([^.!?\n]{2,100})/gi,
+];
+
+const PRODUCT_IDEA_PATTERNS = [
+  /(?:product idea|feature idea|new feature|product concept)\s*[:\-]?\s*([^.!?\n]{5,100})/gi,
+];
+
+const RESEARCH_PATTERNS = [
+  /(?:research(?: shows| suggests| indicates)?|market study|user study|customer research|finding(?:s)?|evidence)\s*[:\-]?\s*([^.!?\n]{5,120})/gi,
+];
+
 // ─── Extraction helpers ───────────────────────────────────────────────────────
 
 function extractMatches(text: string, patterns: RegExp[]): string[] {
@@ -109,6 +126,12 @@ export function extractEntities(content: string): ExtractedEntities {
     targetCustomers: extractMatches(content, CUSTOMER_PATTERNS),
     businessModels: extractMatches(content, BUSINESS_MODEL_PATTERNS),
     fundingMentions: extractMatches(content, FUNDING_PATTERNS),
+    investorMentions: extractMatches(content, INVESTOR_PATTERNS),
+    productIdeas: [
+      ...extractMatches(content, PRODUCT_IDEA_PATTERNS),
+      ...extractMatches(content, IDEA_PATTERNS),
+    ],
+    researchFindings: extractMatches(content, RESEARCH_PATTERNS),
     goals: extractMatches(content, GOAL_PATTERNS),
     deadlines: extractMatches(content, DEADLINE_PATTERNS),
     technologies: extractMatches(content, TECH_PATTERNS),
@@ -129,6 +152,9 @@ export function deriveTags(content: string, entities: ExtractedEntities): string
   if (entities.competitors.length > 0) tags.add("competitor");
   if (entities.technologies.length > 0) tags.add("technology");
   if (entities.fundingMentions.length > 0) tags.add("funding");
+  if (entities.investorMentions.length > 0) tags.add("investor");
+  if (entities.productIdeas.length > 0) tags.add("product-idea");
+  if (entities.researchFindings.length > 0) tags.add("research");
   if (entities.deadlines.length > 0) tags.add("deadline");
   if (entities.problems.length > 0) tags.add("problem");
   if (entities.requirements.length > 0) tags.add("requirement");

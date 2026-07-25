@@ -129,6 +129,66 @@ export interface MemoryContext {
   conversationSummary?: ConversationSummary;
 }
 
+// ─── Engine Memory Interfaces ───────────────────────────────────────────────
+
+/** Shared base fields required on every engine memory interface. */
+export interface EngineMemoryBase extends MemoryRecord {
+  title: string;
+  summary: string;
+  tags: readonly string[];
+  /** 0–10 importance score. */
+  importance: number;
+  source: string;
+  companyId: string;
+}
+
+export interface FounderMemory extends EngineMemoryBase {
+  userId: string;
+  fullName: string;
+  role: string;
+  bio?: string;
+  linkedIn?: string;
+  skills: readonly string[];
+  previousStartups: readonly string[];
+}
+
+export interface CompanyMemory extends EngineMemoryBase {
+  name: string;
+  industry: string;
+  stage: StartupStage;
+  website?: string;
+  description: string;
+  foundedAt?: MemoryTimestamp;
+  teamSize?: number;
+  location?: string;
+}
+
+export interface ConversationMemory extends EngineMemoryBase {
+  sessionId: string;
+  userId: string;
+  agentId: string;
+  messageCount: number;
+  keyTopics: readonly string[];
+  outcome?: string;
+}
+
+export interface ResearchMemory extends EngineMemoryBase {
+  topic: string;
+  findings: readonly string[];
+  sources: readonly string[];
+  confidence: "low" | "medium" | "high";
+  researchedAt: MemoryTimestamp;
+}
+
+export interface DecisionMemory extends EngineMemoryBase {
+  decision: string;
+  rationale: string;
+  alternatives: readonly string[];
+  outcome?: string;
+  decidedAt: MemoryTimestamp;
+  decidedBy: string;
+}
+
 // ─── New: Message Memory Record ──────────────────────────────────────────────
 
 /** All entity categories that can be extracted from a message. */
@@ -140,6 +200,9 @@ export interface ExtractedEntities {
   targetCustomers: readonly string[];
   businessModels: readonly string[];
   fundingMentions: readonly string[];
+  investorMentions: readonly string[];
+  productIdeas: readonly string[];
+  researchFindings: readonly string[];
   goals: readonly string[];
   deadlines: readonly string[];
   technologies: readonly string[];

@@ -53,8 +53,10 @@ export abstract class BaseAgent implements Agent {
       const memory = await this.loadContext(request);
       const systemPrompt = this.buildSystemPrompt(memory);
       const result = await this.router({
+        agent: request.agent,
         provider: request.provider,
         model: request.model,
+        contextInput: request.contextInput,
         systemPrompt,
         prompt: this.buildUserPrompt(request, memory),
         temperature: request.temperature,
