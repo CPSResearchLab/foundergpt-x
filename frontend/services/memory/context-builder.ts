@@ -22,6 +22,7 @@ import type { AgentMemoryContext } from "./types";
 import { getRecentSessionMessages, retrieveRelevantMemory } from "./retrieval";
 import { getProjectRecords } from "./store";
 import { searchDocumentMemory } from "./documents";
+import { graphContextIntegration } from "../graph/context-integration";
 
 // ─── Budget ───────────────────────────────────────────────────────────────────
 
@@ -158,6 +159,7 @@ export async function buildAgentMemoryContext(input: BuildContextInput): Promise
     recentMessages,
     documents,
     agentInstructions,
+    graphContext: `${graphContextIntegration.getProjectContext(projectId)}\n\n${graphContextIntegration.enrichQueryContext(currentMessage.split(" "))}`.trim(),
   };
 
   return applyTokenBudget(ctx);
@@ -236,6 +238,11 @@ export function serializeContextToSystemPrompt(ctx: AgentMemoryContext): string 
   // Layer 8: Agent Instructions
   if (ctx.agentInstructions) {
     sections.push("## Agent Instructions\n" + ctx.agentInstructions);
+  }
+
+  // Layer 9: Graph Context
+  if (ctx.graphContext && ctx.graphContext.length > 0) {
+    sections.push("## Graph Context\n" + ctx.graphContext);
   }
 
   return sections.join("\n\n---\n\n");

@@ -1,4 +1,4 @@
-import type { Agent } from "./types";
+import type { Agent, AgentDefinition } from "./types";
 import { CeoAgent } from "./ceo";
 import { CtoAgent } from "./cto";
 import { InvestorAgent } from "./investor";
@@ -11,6 +11,7 @@ import { LegalAgent } from "./legal";
 import { ResearchAgent } from "./research";
 import { ProductAgent } from "./product";
 import { GrowthAgent } from "./growth";
+import { getAgentProfile } from "./profiles";
 
 export class AgentRegistry {
   private readonly agents = new Map<string, Agent>();
@@ -31,6 +32,27 @@ export class AgentRegistry {
   /** Returns all registered agents in registration order. */
   list(): Agent[] {
     return Array.from(this.agents.values());
+  }
+
+  getDefinition(name: string): AgentDefinition | undefined {
+    const agent = this.get(name);
+    if (!agent) return undefined;
+    const profile = getAgentProfile(name);
+    return {
+      name: agent.name,
+      role: profile?.role ?? agent.displayLabel,
+      skills: agent.capabilities.map((capability) => capability.id),
+      limitations: profile?.limitations ?? [],
+      supportedTasks: profile?.supportedTasks ?? agent.capabilities.map((capability) => capability.id),
+      priority: profile?.priority ?? 50,
+      temperature: profile?.temperature ?? 0.4,
+      preferredModel: profile?.preferredBedrockModel ?? "",
+      description: agent.description,
+    };
+  }
+
+  definitions(): AgentDefinition[] {
+    return this.list().map((agent) => this.getDefinition(agent.name)).filter((definition): definition is AgentDefinition => definition !== undefined);
   }
 }
 
@@ -54,6 +76,9 @@ export interface AgentDescriptor {
   label: string;
   description: string;
   icon: string;
+  role?: string;
+  skills?: readonly string[];
+  priority?: number;
 }
 
 /** Returns a plain serialisable list of all agents for the UI. */
@@ -63,5 +88,12 @@ export function getAgentDescriptors(): AgentDescriptor[] {
     label: a.displayLabel,
     description: a.description,
     icon: a.icon,
+    role: agentRegistry.getDefinition(a.name)?.role,
+    skills: agentRegistry.getDefinition(a.name)?.skills,
+    priority: agentRegistry.getDefinition(a.name)?.priority,
   }));
+}
+
+export function getAgentDefinitions(): AgentDefinition[] {
+  return agentRegistry.definitions();
 }

@@ -51,7 +51,10 @@ export abstract class BaseAgent implements Agent {
 
     try {
       const memory = await this.loadContext(request);
-      const systemPrompt = this.buildSystemPrompt(memory);
+      const systemPrompt = [
+        this.buildSystemPrompt(memory),
+        request.sharedContext ? `Shared collaborative context:\n${JSON.stringify(request.sharedContext)}` : "",
+      ].filter(Boolean).join("\n\n");
       const result = await this.router({
         agent: request.agent,
         provider: request.provider,

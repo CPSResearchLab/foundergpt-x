@@ -80,11 +80,6 @@ const DECISION_PATTERNS = [
   /(?:decided?(?:\s+to)?|decision(?:\s+(?:is|was))?|chose(?:n)?\s+to|going\s+with|will\s+(?:use|go\s+with|build|focus)|committed?\s+to)\s+([^.!?\n]{5,100})/gi,
 ];
 
-const TASK_PATTERNS = [
-  /(?:task|todo|action item|next step|follow[- ]?up)\s*[:\-]?\s*([^.!?\n]{5,100})/gi,
-  /(?:we|i)\s+(?:need|have|plan)\s+to\s+([^.!?\n]{5,100})/gi,
-];
-
 const INVESTOR_PATTERNS = [
   /(?:investors?|backed by|funded by|raised from|investment from)\s*[:\-]?\s*([^.!?\n]{2,100})/gi,
 ];

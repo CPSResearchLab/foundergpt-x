@@ -336,4 +336,6 @@ export interface AgentMemoryContext {
   }>;
   /** Per-agent instructions injected into the system prompt. */
   agentInstructions: string;
+  /** Extracted Knowledge Graph subgraph context. */
+  graphContext?: string;
 }

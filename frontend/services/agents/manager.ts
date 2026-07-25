@@ -1,10 +1,23 @@
 import type { AgentRegistry } from "./registry";
 import type { AgentExecutionLogger, AgentRequest, AgentResponse } from "./types";
+import { AgentOrchestrator } from "./orchestrator";
+import { TaskPlanner } from "./task-planner";
 
 export class AgentManager {
-  constructor(private readonly registry: AgentRegistry, private readonly logExecution: AgentExecutionLogger = () => undefined) {}
+  private readonly orchestrator: AgentOrchestrator;
+  private readonly planner: TaskPlanner;
+
+  constructor(private readonly registry: AgentRegistry, private readonly logExecution: AgentExecutionLogger = () => undefined, orchestrator?: AgentOrchestrator) {
+    this.orchestrator = orchestrator ?? new AgentOrchestrator(registry);
+    this.planner = new TaskPlanner();
+  }
 
   async execute(request: AgentRequest): Promise<AgentResponse> {
+    if (request.orchestration?.enabled || this.planner.shouldOrchestrate(request.prompt)) {
+      const collaborative = await this.orchestrator.execute(request);
+      await this.log(collaborative.response);
+      return collaborative.response;
+    }
     const agent = this.registry.get(request.agent);
     if (!agent) {
       const now = new Date().toISOString();

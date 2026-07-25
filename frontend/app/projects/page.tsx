@@ -31,11 +31,14 @@ function ProjectsContent() {
 
   useEffect(() => {
     if (searchParams.get("new") === "true") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEditingProject(null);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsModalOpen(true);
     }
     const search = searchParams.get("search");
     if (search) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSearchQuery(search);
     }
   }, [searchParams]);

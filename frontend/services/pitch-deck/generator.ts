@@ -12,7 +12,7 @@
  */
 
 import { askAI } from "../ai/router";
-import { getProjectRecords, getSessionRecords } from "../memory/store";
+import { getProjectRecords } from "../memory/store";
 import { buildPitchDeckSystemPrompt, buildPitchDeckUserPrompt } from "./prompt";
 import { SLIDE_ORDER } from "./types";
 import type {

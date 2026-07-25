@@ -15,6 +15,7 @@ import type { ChatMessageEntry, MessageMemoryRecord } from "./types";
 import { storeMessageRecord } from "./store";
 import { extractEntities, deriveTags } from "./extractor";
 import { createMemoryStore } from "./memory-store";
+import { saveMemory } from "./memory-v2";
 
 const chatMemoryStore = createMemoryStore("chat_messages");
 
@@ -67,6 +68,18 @@ export function storeChatMessage(input: StoreChatMessageInput): MessageMemoryRec
   };
 
   void chatMemoryStore.saveMemory(entry);
+  void saveMemory({
+    id,
+    type: "CHAT",
+    projectId: input.projectId,
+    title: `${input.role} message`,
+    summary: input.content,
+    content: input.content,
+    tags,
+    importance: input.role === "user" ? 0.6 : 0.4,
+    source: `chat:${input.sessionId}`,
+    metadata: { userId: input.userId, sessionId: input.sessionId, role: input.role },
+  });
 
   return record;
 }

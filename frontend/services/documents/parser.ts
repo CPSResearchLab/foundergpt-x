@@ -11,6 +11,8 @@
  *   MD    — UTF-8 decode (markdown kept as-is for chunking)
  *   CSV   — csv-parse (rows joined as readable text)
  *   PPTX  — XML extraction (no external dep needed)
+ *   JSON, HTML, and code — UTF-8 text with lightweight normalization
+ *   Images — placeholder result; OCR can be added behind the same interface
  */
 
 import type { DocumentFileType } from "./types";
@@ -29,11 +31,16 @@ export async function parseDocument(buffer: Buffer, fileType: DocumentFileType):
       return parseDocx(buffer);
     case "txt":
     case "md":
+    case "json":
+    case "code":
+    case "html":
       return { text: buffer.toString("utf-8") };
     case "csv":
       return parseCsv(buffer);
     case "pptx":
       return parsePptx(buffer);
+    case "image":
+      return { text: "", pageCount: 1 };
     default:
       throw new Error(`Unsupported file type: ${fileType as string}`);
   }
@@ -43,8 +50,11 @@ export async function parseDocument(buffer: Buffer, fileType: DocumentFileType):
 
 async function parsePdf(buffer: Buffer): Promise<ParseResult> {
   // Dynamic import keeps this out of the client bundle
-  const pdfParse = (await import("pdf-parse")) as any;
- const result = await pdfParse.default?.(buffer) ?? pdfParse(buffer);
+  type PdfResult = { text: string; numpages: number };
+  type PdfParser = (input: Buffer) => Promise<PdfResult>;
+  const pdfModule = await import("pdf-parse") as unknown as { default?: PdfParser } & PdfParser;
+  const parser: PdfParser = typeof pdfModule.default === "function" ? pdfModule.default : pdfModule;
+  const result = await parser(buffer);
   return { text: result.text.trim(), pageCount: result.numpages };
 }
 

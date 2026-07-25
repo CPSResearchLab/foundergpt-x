@@ -7,7 +7,7 @@ export type {
   RankedMemory,
   RetrievedMemoryContext,
   ExtractedEntities,
-  MemorySearchResult,
+  MemorySearchResult as LegacyMemorySearchResult,
   AgentMemoryContext,
   MemoryRecord,
   MemoryContext,
@@ -32,7 +32,7 @@ export type { BuildMemoryContextInput } from "./context";
 
 export {
   memoryEngine,
-  getMemory,
+  getMemory as legacyGetMemory,
   getMemoryEntryCount,
   InMemoryMemoryEngine,
 } from "./memory";
@@ -52,23 +52,36 @@ export type {
 export {
   configureMemoryBackend,
   saveMemory,
+  getMemory,
+  listMemories,
   updateMemory,
   deleteMemory,
+  clearMemory,
+  exportMemory,
+  importMemory,
   searchMemory,
+  searchMemories,
   getRelevantMemories,
   LocalMemoryBackend,
 } from "./memory-v2";
 export type {
   Memory,
+  MemoryCategory,
   MemoryType,
+  LegacyMemoryType,
   MemoryInput,
   MemoryUpdate,
   MemorySearchOptions,
+  MemoryListOptions,
+  MemorySearchResult,
   RelevantMemoryOptions,
-  RelevantMemory,
   MemoryBackend,
 } from "./memory-v2";
 export { MEMORY_TYPES } from "./memory-v2";
+
+export { MemoryManager, memoryManager } from "./memory-manager";
+export { ContextBuilder, ContextAssembler, MemoryRetriever } from "./context-engine";
+export type { MemoryContextInput, MemoryContextObject } from "./context-engine";
 
 export { storeMessageRecord, getProjectRecords, getSessionRecords, getStoredMessageCount } from "./store";
 

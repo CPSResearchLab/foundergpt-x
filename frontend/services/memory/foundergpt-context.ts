@@ -7,6 +7,9 @@ import { searchDecisionMemory } from "./decisions";
 import { searchTaskMemory } from "./tasks";
 import { searchResearchMemory } from "./research";
 import { searchDocumentMemory } from "./documents";
+import { memoryManager } from "./memory-manager";
+import { DocumentSearch } from "../documents/search";
+import type { DocumentMetadata } from "../documents/types";
 import type {
   CompanyMemory,
   DecisionMemory,
@@ -35,6 +38,15 @@ export interface ContextMemory {
   source: string;
   updatedAt: string;
   score?: number;
+}
+
+export interface DocumentContextChunk {
+  documentId: string;
+  title: string;
+  text: string;
+  score: number;
+  sectionPath: readonly string[];
+  pageNumber?: number;
 }
 
 export interface FounderProfile {
@@ -75,6 +87,15 @@ export interface FounderGPTContext {
   tasks: readonly ContextMemory[];
   documents: readonly ContextMemory[];
   research: readonly ContextMemory[];
+  importantMemories: readonly ContextMemory[];
+  documentChunks: readonly DocumentContextChunk[];
+  documentMetadata: ReadonlyArray<{
+    documentId: string;
+    title: string;
+    filename: string;
+    summary: string;
+    metadata?: DocumentMetadata;
+  }>;
   founderProfile: FounderProfile | null;
   companyProfile: CompanyProfile | null;
 }
@@ -87,6 +108,7 @@ const LIMITS = {
   tasks: 8,
   documents: 6,
   research: 6,
+  documentChunks: 8,
   itemSummaryChars: 280,
   itemContentChars: 700,
   profileFacts: 12,
@@ -161,6 +183,19 @@ function fromDocument(memory: DocumentMemory): ContextMemory {
   return fromLegacy(memory, "document");
 }
 
+function fromDocumentSearch(result: { document: { id: string; title: string; filename: string; summary?: { short: string }; metadata?: DocumentMetadata }; chunk: { text: string; sectionPath?: readonly string[]; pageNumber?: number }; score: number }): ContextMemory {
+  return {
+    id: result.document.id,
+    type: "document",
+    summary: clip(result.document.summary?.short ?? result.chunk.text, LIMITS.itemSummaryChars),
+    content: clip(result.chunk.text, LIMITS.itemContentChars),
+    tags: result.document.metadata?.tags ?? [],
+    source: `document:${result.document.id}`,
+    updatedAt: result.document.metadata?.modifiedDate ?? new Date(0).toISOString(),
+    score: result.score,
+  };
+}
+
 function fromResearch(memory: ResearchMemory): ContextMemory {
   return fromLegacy({
     ...memory,
@@ -199,6 +234,16 @@ export async function buildFounderGPTContext(
   const currentMessage = input.currentMessage.trim();
   const projectRecords = getProjectRecords(projectId);
   const sessionRecords = input.sessionId ? getSessionRecords(input.sessionId) : [];
+  const documentSearch = new DocumentSearch();
+  const brainContext = await memoryManager.buildContext({
+    userId: input.userId,
+    projectId,
+    projectName: input.projectName,
+    projectIndustry: input.projectIndustry,
+    projectDescription: input.projectDescription,
+    sessionId: input.sessionId,
+    message: currentMessage,
+  });
 
   const [
     relevantV2,
@@ -208,6 +253,7 @@ export async function buildFounderGPTContext(
     tasks,
     documents,
     research,
+    documentResults,
   ] = await Promise.all([
     getRelevantMemories(currentMessage, { projectId, limit: LIMITS.relevantMemories }),
     searchFounderMemory("", projectId),
@@ -216,6 +262,7 @@ export async function buildFounderGPTContext(
     searchTaskMemory("", projectId),
     searchDocumentMemory("", projectId),
     searchResearchMemory("", projectId),
+    documentSearch.search({ query: currentMessage, projectId, limit: LIMITS.documentChunks }),
   ]);
 
   const legacyRelevant = retrieveRelevantMemory({
@@ -245,7 +292,12 @@ export async function buildFounderGPTContext(
     })),
   );
 
-  const recentMessages = [...sessionRecords]
+  const brainRecentMessages = brainContext.relatedChats.map((result) => ({
+    role: result.memory.metadata.role === "system" ? "system" as const : result.memory.metadata.role === "assistant" ? "assistant" as const : "user" as const,
+    content: result.memory.content,
+    createdAt: result.memory.createdAt,
+  }));
+  const recentMessages = [...sessionRecords.map((record) => ({ role: record.role, content: record.content, createdAt: record.createdAt })), ...brainRecentMessages]
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     .slice(-LIMITS.recentMessages)
     .map((record) => ({
@@ -253,6 +305,14 @@ export async function buildFounderGPTContext(
       content: clip(record.content, LIMITS.itemContentChars),
       createdAt: record.createdAt,
     }));
+
+  const goalMemories: ContextMemory[] = [
+    ...goals,
+    ...brainContext.goals.map(fromV2),
+  ];
+  const documentContextMemories = [...documents.map(fromDocument), ...documentResults.map(fromDocumentSearch)]
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    .slice(0, LIMITS.documents);
 
   return {
     currentProject: {
@@ -266,18 +326,45 @@ export async function buildFounderGPTContext(
       currentMessage: clip(currentMessage, LIMITS.itemContentChars),
       recentMessages,
     },
-    relevantMemories: [...relevantV2.map(fromV2), ...legacyRelevant]
+    relevantMemories: [...relevantV2.map(fromV2), ...brainContext.relevantMemories.map((result) => fromV2({ ...result.memory, score: result.score })), ...legacyRelevant]
       .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
       .slice(0, LIMITS.relevantMemories),
     recentDecisions: sortRecent(decisions.map(fromDecision), LIMITS.decisions),
-    goals: unique(goals.map((goal) => goal.content))
-      .map((goal) => goals.find((candidate) => candidate.content === goal)!)
+    goals: unique(goalMemories.map((goal) => goal.content))
+      .map((goal) => goalMemories.find((candidate) => candidate.content === goal)!)
       .slice(0, LIMITS.goals),
     tasks: sortRecent(tasks.map(fromTask), LIMITS.tasks),
-    documents: sortRecent(documents.map(fromDocument), LIMITS.documents),
+    documents: documentContextMemories,
     research: sortRecent(research.map(fromResearch), LIMITS.research),
-    founderProfile: profileFromFounder(sortRecent(founderRecords, 1)[0]),
-    companyProfile: profileFromCompany(sortRecent(companyRecords, 1)[0]),
+    importantMemories: brainContext.importantMemories.map(fromV2),
+    documentChunks: documentResults.slice(0, LIMITS.documentChunks).map((result) => ({
+      documentId: result.document.id,
+      title: result.document.title,
+      text: clip(result.chunk.text, LIMITS.itemContentChars),
+      score: result.score,
+      sectionPath: result.chunk.sectionPath ?? [],
+      ...(result.chunk.pageNumber === undefined ? {} : { pageNumber: result.chunk.pageNumber }),
+    })),
+    documentMetadata: documentResults.slice(0, LIMITS.documents).map((result) => ({
+      documentId: result.document.id,
+      title: result.document.title,
+      filename: result.document.filename,
+      summary: result.document.summary?.short ?? "",
+      ...(result.document.metadata ? { metadata: result.document.metadata } : {}),
+    })),
+    founderProfile: profileFromFounder(sortRecent(founderRecords, 1)[0] ?? undefined) ?? (brainContext.userProfile ? {
+      id: brainContext.userProfile.id,
+      name: brainContext.userProfile.title,
+      summary: clip(brainContext.userProfile.summary, LIMITS.itemContentChars),
+      facts: brainContext.userProfile.tags,
+    } : null),
+    companyProfile: profileFromCompany(sortRecent(companyRecords, 1)[0] ?? undefined) ?? (brainContext.company ? {
+      id: brainContext.company.id,
+      name: brainContext.company.title,
+      industry: brainContext.company.metadata.industry as string | undefined,
+      summary: clip(brainContext.company.summary, LIMITS.itemContentChars),
+      facts: brainContext.company.tags,
+    } : null),
   };
 }
 

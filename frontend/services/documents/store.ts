@@ -36,6 +36,28 @@ export function updateDocument(id: string, patch: Partial<Pick<StoredDocument, "
   return structuredClone(updated);
 }
 
+/** Full-record update used by the intelligence repository. Existing callers remain compatible. */
+export function updateStoredDocument(id: string, patch: Partial<StoredDocument>): StoredDocument | null {
+  const doc = documentStore.get(id);
+  if (!doc) return null;
+  const updated: StoredDocument = { ...doc, ...structuredClone(patch), updatedAt: new Date().toISOString() };
+  documentStore.set(id, updated);
+  return structuredClone(updated);
+}
+
+export function listStoredDocuments(projectId?: string): StoredDocument[] {
+  return Array.from(documentStore.values())
+    .filter((doc) => !projectId || doc.projectId === projectId)
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .map((doc) => structuredClone(doc));
+}
+
+export function clearDocumentChunks(documentId: string): void {
+  const chunkIds = chunksByDocument.get(documentId) ?? [];
+  for (const chunkId of chunkIds) chunkStore.delete(chunkId);
+  chunksByDocument.delete(documentId);
+}
+
 export function deleteDocument(id: string): boolean {
   if (!documentStore.has(id)) return false;
   documentStore.delete(id);

@@ -18,6 +18,9 @@ export interface AgentProfile {
   readonly preferredBedrockModel: ModelId;
   readonly temperature: number;
   readonly maxTokens: number;
+  readonly limitations: readonly string[];
+  readonly supportedTasks: readonly string[];
+  readonly priority: number;
 }
 
 const MEMORY_TOOLS: readonly AgentTool[] = ["memory.search", "memory.relevant"];
@@ -33,6 +36,9 @@ export const AGENT_PROFILES = {
     preferredBedrockModel: "amazon.nova-pro-v1:0",
     temperature: 0.45,
     maxTokens: 5000,
+    limitations: ["Does not replace legal, tax, or regulated professional advice."],
+    supportedTasks: ["strategy", "prioritisation", "decisions", "planning"],
+    priority: 100,
   },
   cto: {
     id: "cto",
@@ -43,6 +49,9 @@ export const AGENT_PROFILES = {
     preferredBedrockModel: "anthropic.claude-3-5-sonnet-20241022-v2:0",
     temperature: 0.3,
     maxTokens: 6000,
+    limitations: ["Requires supplied constraints and evidence for production decisions."],
+    supportedTasks: ["architecture", "technology", "engineering", "security"],
+    priority: 80,
   },
   investor: {
     id: "investor",
@@ -53,6 +62,9 @@ export const AGENT_PROFILES = {
     preferredBedrockModel: "amazon.nova-pro-v1:0",
     temperature: 0.35,
     maxTokens: 6000,
+    limitations: ["Does not invent traction, metrics, or market evidence."],
+    supportedTasks: ["fundraising", "investor-readiness", "due-diligence", "valuation"],
+    priority: 90,
   },
   marketing: {
     id: "marketing",
@@ -63,6 +75,9 @@ export const AGENT_PROFILES = {
     preferredBedrockModel: "amazon.nova-pro-v1:0",
     temperature: 0.65,
     maxTokens: 5000,
+    limitations: ["Requires a defined customer and evidence before making channel claims."],
+    supportedTasks: ["positioning", "messaging", "go-to-market", "acquisition"],
+    priority: 60,
   },
   finance: {
     id: "finance",
@@ -73,6 +88,9 @@ export const AGENT_PROFILES = {
     preferredBedrockModel: "anthropic.claude-3-5-sonnet-20241022-v2:0",
     temperature: 0.2,
     maxTokens: 7000,
+    limitations: ["Financial outputs are scenario models, not financial advice."],
+    supportedTasks: ["financial-modeling", "unit-economics", "runway", "pricing"],
+    priority: 85,
   },
   legal: {
     id: "legal",
@@ -83,6 +101,9 @@ export const AGENT_PROFILES = {
     preferredBedrockModel: "anthropic.claude-3-5-sonnet-20241022-v2:0",
     temperature: 0.2,
     maxTokens: 6000,
+    limitations: ["Provides information and issue mapping, not legal advice."],
+    supportedTasks: ["legal-risk", "compliance", "contracts", "due-diligence"],
+    priority: 75,
   },
   research: {
     id: "research",
@@ -93,6 +114,9 @@ export const AGENT_PROFILES = {
     preferredBedrockModel: "amazon.nova-pro-v1:0",
     temperature: 0.35,
     maxTokens: 7000,
+    limitations: ["Cannot verify live web facts without an enabled web tool."],
+    supportedTasks: ["market-research", "competitors", "industry", "evidence"],
+    priority: 70,
   },
   product: {
     id: "product",
@@ -103,6 +127,9 @@ export const AGENT_PROFILES = {
     preferredBedrockModel: "anthropic.claude-3-5-sonnet-20241022-v2:0",
     temperature: 0.4,
     maxTokens: 6000,
+    limitations: ["Prioritisation depends on customer and product evidence."],
+    supportedTasks: ["roadmap", "mvp", "user-stories", "product-metrics"],
+    priority: 65,
   },
   growth: {
     id: "growth",
@@ -113,6 +140,48 @@ export const AGENT_PROFILES = {
     preferredBedrockModel: "amazon.nova-pro-v1:0",
     temperature: 0.55,
     maxTokens: 5500,
+    limitations: ["Experiment recommendations require measurable baseline metrics."],
+    supportedTasks: ["experiments", "funnels", "retention", "acquisition"],
+    priority: 55,
+  },
+  "business-plan": {
+    id: "business-plan",
+    role: "Business planning specialist",
+    description: "Integrated business plans, market analysis, operating plans, and risks.",
+    systemPrompt: "Act as a rigorous business planning specialist. Connect strategy, market evidence, operations, and financial assumptions into a coherent plan.",
+    availableTools: [...MEMORY_TOOLS, "documents.search", "finance.model", "research.analyze"],
+    preferredBedrockModel: "amazon.nova-pro-v1:0",
+    temperature: 0.35,
+    maxTokens: 7000,
+    limitations: ["Must identify assumptions and evidence gaps in the plan."],
+    supportedTasks: ["business-plan", "market-analysis", "operating-plan", "risk-analysis"],
+    priority: 78,
+  },
+  sales: {
+    id: "sales",
+    role: "Startup sales specialist",
+    description: "ICP, sales process, outreach, discovery, and pipeline execution.",
+    systemPrompt: "Act as a practical startup sales specialist. Turn customer insight into focused ICP, discovery, outreach, and pipeline actions.",
+    availableTools: [...MEMORY_TOOLS, "documents.search", "research.analyze"],
+    preferredBedrockModel: "amazon.nova-pro-v1:0",
+    temperature: 0.5,
+    maxTokens: 5500,
+    limitations: ["Requires customer evidence before asserting demand or conversion rates."],
+    supportedTasks: ["sales", "icp", "outreach", "pipeline"],
+    priority: 50,
+  },
+  "pitch-deck": {
+    id: "pitch-deck",
+    role: "Pitch deck specialist",
+    description: "Investor narrative, slide structure, proof gaps, and fundraising storytelling.",
+    systemPrompt: "Act as a precise pitch deck specialist. Build an evidence-backed investor narrative and clearly flag unsupported claims.",
+    availableTools: [...MEMORY_TOOLS, "documents.search", "research.analyze"],
+    preferredBedrockModel: "amazon.nova-pro-v1:0",
+    temperature: 0.4,
+    maxTokens: 6500,
+    limitations: ["Must not fabricate traction, market size, or investor interest."],
+    supportedTasks: ["pitch-deck", "investor-narrative", "market-sizing", "traction"],
+    priority: 88,
   },
 } as const satisfies Record<string, AgentProfile>;
 

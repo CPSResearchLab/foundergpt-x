@@ -98,6 +98,7 @@ export function AuthShell({ mode }: { mode: AuthMode }) {
 
   useEffect(() => {
     if (!login || !isCognitoConfigured) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsCheckingAuth(false);
       return;
     }
