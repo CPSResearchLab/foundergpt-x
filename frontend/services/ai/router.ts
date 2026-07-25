@@ -9,7 +9,7 @@
  *   - Return a single unified AIResponse — no provider objects ever leak out
  *
  * Provider priority (highest → lowest):
- *   groq → gemini → openrouter → nvidia → claude → bedrock
+ *   bedrock → groq → gemini → openrouter → nvidia → claude
  *
  * A provider is skipped if its API key env var is absent, so the chain
  * degrades gracefully in any deployment environment.
@@ -21,6 +21,7 @@ import { askOpenRouter } from "./openrouter";
 import { askNvidia } from "./nvidia";
 import { askBedrock } from "./bedrock";
 import { askClaude } from "./claude";
+import { MODELS } from "./models";
 import type { AIProvider, AIRequest, AIResponse } from "./types";
 
 // ─── Configuration ────────────────────────────────────────────────────────────
@@ -28,34 +29,39 @@ import type { AIProvider, AIRequest, AIResponse } from "./types";
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 300;
 
-/** Env-var name that gates each provider. */
-const PROVIDER_KEY_ENV: Record<AIProvider, string> = {
-  groq: "GROQ_API_KEY",
-  gemini: "GEMINI_API_KEY",
-  openrouter: "OPENROUTER_API_KEY",
-  nvidia: "NVIDIA_API_KEY",
-  claude: "AWS_ACCESS_KEY_ID",
-  bedrock: "AWS_ACCESS_KEY_ID",
-};
-
-/** Default fallback chain — ordered by speed and reliability. */
-const DEFAULT_CHAIN: AIProvider[] = ["groq", "gemini", "openrouter", "nvidia", "claude", "bedrock"];
-
 type ProviderFn = (request: AIRequest) => Promise<AIResponse>;
 
-const PROVIDER_FNS: Record<AIProvider, ProviderFn> = {
-  groq: askGroq,
-  gemini: askGemini,
-  openrouter: askOpenRouter,
-  nvidia: askNvidia,
-  claude: askClaude,
-  bedrock: askBedrock,
+type ProviderConfig = {
+  envKey: string;
+  handler: ProviderFn;
 };
+
+/** Single provider registry used for availability checks and dispatch. */
+const PROVIDERS: Record<AIProvider, ProviderConfig> = {
+  bedrock: { envKey: "AWS_ACCESS_KEY_ID", handler: askBedrock },
+  groq: { envKey: "GROQ_API_KEY", handler: askGroq },
+  gemini: { envKey: "GEMINI_API_KEY", handler: askGemini },
+  openrouter: { envKey: "OPENROUTER_API_KEY", handler: askOpenRouter },
+  nvidia: { envKey: "NVIDIA_API_KEY", handler: askNvidia },
+  claude: { envKey: "AWS_ACCESS_KEY_ID", handler: askClaude },
+};
+
+const DEFAULT_PROVIDER: AIProvider = "bedrock";
+
+/** Default fallback chain, with Bedrock as the default provider. */
+const DEFAULT_CHAIN: AIProvider[] = [
+  DEFAULT_PROVIDER,
+  "groq",
+  "gemini",
+  "openrouter",
+  "nvidia",
+  "claude",
+];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function isAvailable(provider: AIProvider): boolean {
-  return Boolean(process.env[PROVIDER_KEY_ENV[provider]]);
+  return Boolean(process.env[PROVIDERS[provider].envKey]);
 }
 
 function isTransient(error: string): boolean {
@@ -67,13 +73,17 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function callWithRetry(provider: AIProvider, request: AIRequest): Promise<AIResponse> {
-  const fn = PROVIDER_FNS[provider];
+  const fn = PROVIDERS[provider].handler;
+  const providerRequest =
+    provider === "bedrock" && !request.model
+      ? { ...request, model: MODELS.bedrock.default }
+      : request;
   let lastResponse: AIResponse | undefined;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (attempt > 0) await sleep(RETRY_DELAY_MS * attempt);
 
-    const response = await fn(request);
+    const response = await fn(providerRequest);
 
     if (response.success) return response;
 
@@ -97,19 +107,17 @@ async function callWithRetry(provider: AIProvider, request: AIRequest): Promise<
  * Always returns a unified AIResponse. Never throws.
  */
 export async function askAI(request: AIRequest): Promise<AIResponse> {
-  const preferred = request.provider;
+  const preferred = request.provider ?? DEFAULT_PROVIDER;
 
-  // Build the ordered chain: preferred first, then the rest of the defaults
-  const chain: AIProvider[] = preferred
-    ? [preferred, ...DEFAULT_CHAIN.filter((p) => p !== preferred)]
-    : [...DEFAULT_CHAIN];
+  // Build the ordered chain: selected provider first, then the configured fallbacks.
+  const chain: AIProvider[] = [preferred, ...DEFAULT_CHAIN.filter((p) => p !== preferred)];
 
   const available = chain.filter(isAvailable);
 
   if (available.length === 0) {
     return {
       success: false,
-      provider: "groq",
+      provider: DEFAULT_PROVIDER,
       model: "none",
       text: "",
       latencyMs: 0,
